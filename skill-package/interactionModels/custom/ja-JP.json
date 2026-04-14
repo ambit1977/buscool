@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "バスくる",
+      "invocationName": "次のバスは",
       "intents": [
         {
           "name": "GetNextBusIntent",

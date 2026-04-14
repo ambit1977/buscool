@@ -71,32 +71,32 @@ export async function fetchBusInfo(startId: string, goalId: string): Promise<Bus
 }
 
 /**
- * Alexaの発話テキストを生成する
+ * Alexaの発話テキストを生成する（簡潔版）
  */
 export function buildSpeechText(buses: BusInfo[]): string {
   if (buses.length === 0) {
-    return '現在、バスの接近情報はありません。しばらくしてからもう一度お試しください。';
+    return 'バスの情報はありません。';
   }
 
   const first = buses[0];
   let speech = '';
 
   if (first.minutesToArrival !== null) {
-    speech = `次のバスは${first.routeName}、${simplifyDestination(first.destination)}で、約${first.minutesToArrival}分後に到着予定です。`;
+    speech = `次のバスは${first.minutesToArrival}分後。`;
     if (first.delay && !first.delay.includes('遅れなし')) {
-      speech += `${first.delay.replace(/[()（）]/g, '')}。`;
+      const delayMin = first.delay.match(/(\d+)/);
+      speech += delayMin ? `${delayMin[1]}分遅れ。` : '';
     }
   } else {
-    speech = `次のバスは${first.routeName}、${simplifyDestination(first.destination)}で、定刻${first.scheduledTime}発です。`;
+    speech = `次のバスは${first.scheduledTime}発。`;
   }
 
-  // 2本目がある場合は追加情報
   if (buses.length >= 2) {
     const second = buses[1];
     if (second.minutesToArrival !== null) {
-      speech += `その次は${second.routeName}、約${second.minutesToArrival}分後です。`;
+      speech += `その次は${second.minutesToArrival}分後。`;
     } else {
-      speech += `その次は${second.routeName}、定刻${second.scheduledTime}発です。`;
+      speech += `その次は${second.scheduledTime}発。`;
     }
   }
 
@@ -104,14 +104,18 @@ export function buildSpeechText(buses: BusInfo[]): string {
 }
 
 /**
- * 行き先名を音声用に簡略化する
- * 例: "成増駅南口経由練馬北町車庫ゆき" → "成増駅南口方面"
+ * Echo Show用の表示データを生成する
  */
-function simplifyDestination(destination: string): string {
-  // "成増駅南口" を含む場合は簡略化
-  if (destination.includes('成増駅南口')) {
-    return '成増駅南口方面';
-  }
-  // "ゆき" を "行き" に統一
-  return destination.replace(/ゆき$/, '行き');
+export function buildDisplayData(buses: BusInfo[]): { title: string; items: { line: string }[] } {
+  const items = buses.slice(0, 5).map((bus) => {
+    let line = `${bus.routeName} ${bus.scheduledTime}`;
+    if (bus.minutesToArrival !== null) {
+      line += ` → 約${bus.minutesToArrival}分後`;
+    }
+    if (bus.delay && !bus.delay.includes('遅れなし')) {
+      line += ` ${bus.delay}`;
+    }
+    return { line };
+  });
+  return { title: '土支田一丁目 → 成増一丁目', items };
 }

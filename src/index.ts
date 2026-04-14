@@ -1,57 +1,113 @@
 import * as Alexa from 'ask-sdk-core';
-import { fetchBusInfo, buildSpeechText } from './bus-service';
+import { fetchBusInfo, buildSpeechText, buildDisplayData } from './bus-service';
 
 // --- 設定 ---
 // 土支田一丁目 → 成増一丁目
 const START_ID = '00020144';
 const GOAL_ID = '00020160';
 
+// --- Echo Show用 APLドキュメント ---
+const APL_DOCUMENT = {
+  type: 'APL',
+  version: '2024.3',
+  mainTemplate: {
+    parameters: ['payload'],
+    items: [
+      {
+        type: 'Container',
+        width: '100%',
+        height: '100%',
+        padding: 20,
+        items: [
+          {
+            type: 'Text',
+            text: '${payload.title}',
+            style: 'textStyleDisplay4',
+            fontWeight: 'bold',
+            fontSize: 28,
+            color: '#FFFFFF',
+            paddingBottom: 16,
+          },
+          {
+            type: 'Sequence',
+            width: '100%',
+            grow: 1,
+            data: '${payload.items}',
+            items: [
+              {
+                type: 'Container',
+                width: '100%',
+                paddingTop: 8,
+                paddingBottom: 8,
+                items: [
+                  {
+                    type: 'Text',
+                    text: '${data.line}',
+                    fontSize: 24,
+                    color: '#FFFFFF',
+                  },
+                ],
+                separator: true,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+};
+
+// --- バス情報を取得して応答を返す共通関数 ---
+async function handleBusRequest(handlerInput: Alexa.HandlerInput) {
+  try {
+    const buses = await fetchBusInfo(START_ID, GOAL_ID);
+    const speakOutput = buildSpeechText(buses);
+    const displayData = buildDisplayData(buses);
+
+    const builder = handlerInput.responseBuilder.speak(speakOutput);
+
+    // Echo Showなど画面付きデバイスの場合はAPLを表示
+    if (
+      Alexa.getSupportedInterfaces(handlerInput.requestEnvelope)['Alexa.Presentation.APL']
+    ) {
+      builder.addDirective({
+        type: 'Alexa.Presentation.APL.RenderDocument',
+        version: '1.0',
+        document: APL_DOCUMENT,
+        datasources: {
+          payload: displayData,
+        },
+      } as any);
+    }
+
+    // 画面なしデバイス向けにシンプルカードも追加
+    const cardText = displayData.items.map((i) => i.line).join('\n');
+    builder.withSimpleCard(displayData.title, cardText);
+
+    return builder.getResponse();
+  } catch (error) {
+    console.error('Error fetching bus info:', error);
+    return handlerInput.responseBuilder
+      .speak('情報の取得に失敗しました。')
+      .getResponse();
+  }
+}
+
 // --- LaunchRequestHandler ---
-// 「アレクサ、バスくるを開いて」でスキルが起動されたとき
-// → 直接バス情報を返す（ワンショット対応）
 const LaunchRequestHandler: Alexa.RequestHandler = {
   canHandle(handlerInput: Alexa.HandlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
   },
-  async handle(handlerInput: Alexa.HandlerInput) {
-    try {
-      const buses = await fetchBusInfo(START_ID, GOAL_ID);
-      const speakOutput = buildSpeechText(buses);
-
-      return handlerInput.responseBuilder
-        .speak(speakOutput)
-        .getResponse();
-    } catch (error) {
-      console.error('Error in LaunchRequest:', error);
-      return handlerInput.responseBuilder
-        .speak('バスの情報の取得に失敗しました。しばらくしてからもう一度お試しください。')
-        .getResponse();
-    }
-  }
+  handle: handleBusRequest,
 };
 
 // --- GetNextBusIntentHandler ---
-// 「次のバスは？」と聞かれたとき
 const GetNextBusIntentHandler: Alexa.RequestHandler = {
   canHandle(handlerInput: Alexa.HandlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
       && Alexa.getIntentName(handlerInput.requestEnvelope) === 'GetNextBusIntent';
   },
-  async handle(handlerInput: Alexa.HandlerInput) {
-    try {
-      const buses = await fetchBusInfo(START_ID, GOAL_ID);
-      const speakOutput = buildSpeechText(buses);
-
-      return handlerInput.responseBuilder
-        .speak(speakOutput)
-        .getResponse();
-    } catch (error) {
-      console.error('Error in GetNextBusIntent:', error);
-      return handlerInput.responseBuilder
-        .speak('バスの情報の取得に失敗しました。しばらくしてからもう一度お試しください。')
-        .getResponse();
-    }
-  }
+  handle: handleBusRequest,
 };
 
 // --- HelpIntentHandler ---
@@ -61,11 +117,9 @@ const HelpIntentHandler: Alexa.RequestHandler = {
       && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent';
   },
   handle(handlerInput: Alexa.HandlerInput) {
-    const speakOutput = '土支田一丁目から成増一丁目方面の次のバスの到着時刻を調べます。「次のバスは？」と聞いてください。';
-
     return handlerInput.responseBuilder
-      .speak(speakOutput)
-      .reprompt(speakOutput)
+      .speak('次のバスの到着時刻を調べます。')
+      .reprompt('次のバスの到着時刻を調べます。')
       .getResponse();
   }
 };
@@ -78,9 +132,7 @@ const CancelAndStopIntentHandler: Alexa.RequestHandler = {
         || Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent');
   },
   handle(handlerInput: Alexa.HandlerInput) {
-    return handlerInput.responseBuilder
-      .speak('さようなら')
-      .getResponse();
+    return handlerInput.responseBuilder.getResponse();
   }
 };
 
@@ -100,10 +152,9 @@ const ErrorHandler: Alexa.ErrorHandler = {
     return true;
   },
   handle(handlerInput: Alexa.HandlerInput, error: Error) {
-    console.error(`Error handled: ${error.stack}`);
+    console.error(`Error: ${error.stack}`);
     return handlerInput.responseBuilder
-      .speak('エラーが発生しました。もう一度やり直してください。')
-      .reprompt('もう一度やり直してください。')
+      .speak('エラーが発生しました。')
       .getResponse();
   }
 };
