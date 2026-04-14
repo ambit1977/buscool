@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "session": {
+    "new": true,
+    "sessionId": "test-session",
+    "application": { "applicationId": "test-app" },
+    "user": { "userId": "test-user" }
+  },
+  "request": {
+    "type": "LaunchRequest",
+    "requestId": "test-request",
+    "timestamp": "2026-04-14T01:30:00Z",
+    "locale": "ja-JP"
+  },
+  "context": {
+    "System": {
+      "application": { "applicationId": "test-app" },
+      "user": { "userId": "test-user" }
+    }
+  }
+}
