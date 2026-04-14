@@ -1,10 +1,9 @@
 import * as Alexa from 'ask-sdk-core';
 import { fetchBusInfo, buildSpeechText, buildDisplayData } from './bus-service';
 
-// --- 設定 ---
-// 土支田一丁目 → 成増一丁目
-const START_ID = '00020144';
-const GOAL_ID = '00020160';
+// --- 設定（環境変数から取得） ---
+const START_ID = process.env.BUS_START_ID || '';
+const GOAL_ID = process.env.BUS_GOAL_ID || '';
 
 // --- Echo Show用 APLドキュメント ---
 const APL_DOCUMENT = {

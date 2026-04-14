@@ -117,5 +117,7 @@ export function buildDisplayData(buses: BusInfo[]): { title: string; items: { li
     }
     return { line };
   });
-  return { title: '土支田一丁目 → 成増一丁目', items };
+  const startName = process.env.BUS_START_NAME || '乗車';
+  const goalName = process.env.BUS_GOAL_NAME || '降車';
+  return { title: `${startName} → ${goalName}`, items };
 }
