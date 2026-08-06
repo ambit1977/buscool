@@ -1,15 +1,16 @@
 {
-  "name": "alexa-bus-app",
+  "name": "buscool",
   "version": "1.0.0",
-  "description": "Alexa skill for real-time bus tracking",
+  "description": "Alexa skill for real-time bus arrival information (Kokusai Kogyo Bus / Navitime scraping)",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "deploy:zip": "npm run build && rm -rf dist/node_modules dist/package.json dist/package-lock.json && cp package.json package-lock.json dist/ && cd dist && npm install --omit=dev --production && rm -f ../lambda-deploy.zip && cd .. && cd dist && zip -rq ../lambda-deploy.zip .",
+    "deploy:lambda": "npm run deploy:zip && aws lambda update-function-code --function-name alexa-bus-kuru --zip-file fileb://lambda-deploy.zip --region ap-northeast-1"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "ambit1977",
+  "license": "MIT",
   "dependencies": {
     "ask-sdk-core": "^2.14.0",
     "axios": "^1.15.0",
@@ -23,3 +24,4 @@
     "typescript": "^6.0.2"
   }
 }
+
