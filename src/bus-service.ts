@@ -1,19 +1,20 @@
 /**
  * 国際興業バス リアルタイム接近情報取得モジュール
- * ナビタイムの接近情報ページをスクレイピングしてバス情報を取得する
+ * ナビタイムの接近情報ページ（新クラウド版）をスクレイピングしてバス情報を取得する
  */
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-const BUS_LOCATION_URL = 'https://transfer.navitime.biz/5931bus/pc/location/BusLocationResult';
+// 2026年9月リニューアル後の新URL
+const BUS_LOCATION_URL = 'https://transfer-cloud.navitime.biz/5931bus/approachings';
 
 export interface BusInfo {
-  routeName: string;            // 系統名 (例: "石03")
-  destination: string;          // 行き先 (例: "成増駅南口経由練馬北町車庫ゆき")
-  scheduledTime: string;        // 定刻 (例: "09:45")
-  minutesToArrival: number | null; // 到着まで何分 (例: 9)
-  delay: string;                // 遅れ情報 (例: "(約1分の遅れ)" や "(遅れなし)")
-  currentPosition: string;      // 現在位置 (例: "7個前の停留所を発車")
+  routeName: string;            // 系統名 (例: "石02")
+  destination: string;          // 行き先 (例: "成増駅南口行")
+  scheduledTime: string;        // 定刻 (例: "11:44")
+  minutesToArrival: number | null; // 到着まで何分 (例: 2)
+  delay: string;                // 遅れ情報 (例: "約3分遅れ" や "遅れなし")
+  currentPosition: string;      // 現在位置 (例: "3個前のバス停から接近中")
 }
 
 /**
@@ -23,39 +24,73 @@ export interface BusInfo {
  */
 export async function fetchBusInfo(startId: string, goalId: string): Promise<BusInfo[]> {
   const res = await axios.get(BUS_LOCATION_URL, {
-    params: { startId, goalId },
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; AlexaBusSkill/1.0)',
+    params: {
+      'departure-busstop': startId,
+      'arrival-busstop': goalId,
     },
-    timeout: 5000,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ja,en;q=0.9',
+    },
+    timeout: 7000,
   });
 
   const $ = cheerio.load(res.data);
   const buses: BusInfo[] = [];
 
-  $('a.locationData, li.plotList a').each((_, el) => {
-    const block = $(el);
-    const text = block.text();
+  // 新ナビタイムサイトの各バスカードは button 要素
+  $('button').each((_, el) => {
+    const btn = $(el);
+    const h3 = btn.find('h3');
+    if (!h3.length) return;
 
-    const routeNameEl = block.find('.courseName');
-    const routeName = routeNameEl.length ? routeNameEl.text().trim() : '';
+    const h3Text = h3.text().trim();
+    if (!h3Text) return;
 
-    const destinationEl = block.find('.destination-name');
-    const destination = destinationEl.length ? destinationEl.text().trim() : '';
+    const fullText = btn.text().replace(/\s+/g, ' ');
 
-    const onTimeEl = block.find('.on-time');
-    const scheduledTime = onTimeEl.length ? onTimeEl.text().replace('定刻', '').trim() : '';
+    // 系統名と行き先（例: "石02成増駅南口行"）
+    let routeName = '';
+    let destination = h3Text;
+    const match = h3Text.match(/^([A-Za-z0-9\u4e00-\u9fa5]+?\d+)(.*)$/);
+    if (match) {
+      routeName = match[1];
+      destination = match[2];
+    }
 
-    const minutesMatch = text.match(/約\s*(\d+)\s*分後に到着/);
-    const minutesToArrival = minutesMatch ? parseInt(minutesMatch[1], 10) : null;
+    // 到着まで何分（例: "あと約 2 分で 到着" または "あと約 1 時間 2 分で 到着"）
+    let minutesToArrival: number | null = null;
+    const hourMinMatch = fullText.match(/あと約\s*(\d+)\s*時間\s*(\d+)\s*分/);
+    const minMatch = fullText.match(/あと約\s*(\d+)\s*分/);
+    if (hourMinMatch) {
+      minutesToArrival = parseInt(hourMinMatch[1], 10) * 60 + parseInt(hourMinMatch[2], 10);
+    } else if (minMatch) {
+      minutesToArrival = parseInt(minMatch[1], 10);
+    }
 
-    const delayMatch = text.match(/\(([^)]*遅[^)]*)\)/);
-    const delay = delayMatch ? delayMatch[0] : '';
+    // 遅延情報（例: "約3分遅れ" または "遅れなし"）
+    let delay = '';
+    const delayMatch = fullText.match(/(約\d+分遅れ|遅れなし)/);
+    if (delayMatch) {
+      delay = delayMatch[1];
+    }
 
-    const positionMatch = text.match(/(\d+個前の停留所を発車|始発バス停出発前)/);
-    const currentPosition = positionMatch ? positionMatch[0] : '';
+    // 乗車バス停側の定刻（例: "定刻 11:44"）
+    let scheduledTime = '';
+    const schedMatch = fullText.match(/定刻\s*(\d{1,2}:\d{2})/);
+    if (schedMatch) {
+      scheduledTime = schedMatch[1];
+    }
 
-    if (routeName || scheduledTime) {
+    // 現在位置（例: "3個前のバス停から接近中" または "始発バス停...発車前"）
+    let currentPosition = '';
+    const posMatch = fullText.match(/(\d+個前のバス停から接近中|始発バス停[^\s]*発車前)/);
+    if (posMatch) {
+      currentPosition = posMatch[1];
+    }
+
+    if (routeName || scheduledTime || minutesToArrival !== null) {
       buses.push({
         routeName,
         destination,
@@ -87,15 +122,17 @@ export function buildSpeechText(buses: BusInfo[]): string {
       const delayMin = first.delay.match(/(\d+)/);
       speech += delayMin ? `${delayMin[1]}分遅れ。` : '';
     }
-  } else {
+  } else if (first.scheduledTime) {
     speech = `次のバスは${first.scheduledTime}発。`;
+  } else {
+    speech = '次のバスの時刻は不明です。';
   }
 
   if (buses.length >= 2) {
     const second = buses[1];
     if (second.minutesToArrival !== null) {
       speech += `その次は${second.minutesToArrival}分後。`;
-    } else {
+    } else if (second.scheduledTime) {
       speech += `その次は${second.scheduledTime}発。`;
     }
   }

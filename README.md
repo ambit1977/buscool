@@ -1,6 +1,6 @@
 # 🚌 BusCool — Alexa バス接近情報スキル
 
-ナビタイムの[バス接近情報ページ](https://transfer.navitime.biz/5931bus/pc/location/BusLocationResult)をスクレイピングして、**次のバスの到着時間**をAlexaがお知らせする個人用スキルです。
+ナビタイムの[バス接近情報ページ](https://transfer-cloud.navitime.biz/5931bus?feature=busApproaching)をスクレイピングして、**次のバスの到着時間**をAlexaがお知らせする個人用スキルです。
 
 > 「アレクサ、次のバスは」 → **「次のバスは9分後。2分遅れ。その次は23分後。」**
 
@@ -54,8 +54,8 @@ cp .env.example .env
 
 ```env
 # ナビタイムのバス停ID
-# 接近情報ページのURL パラメータ startId / goalId から取得
-# 例: https://transfer.navitime.biz/5931bus/pc/location/BusLocationResult?startId=00020144&goalId=00020160
+# 接近情報ページのURL パラメータ departure-busstop / arrival-busstop から取得
+# 例: https://transfer-cloud.navitime.biz/5931bus/approachings?departure-busstop=00020144&arrival-busstop=00020160
 BUS_START_ID=00020144
 BUS_GOAL_ID=00020160
 
@@ -66,9 +66,9 @@ BUS_GOAL_NAME=成増一丁目
 
 #### バス停IDの調べ方
 
-1. [ナビタイム 国際興業バス接近情報](https://transfer.navitime.biz/5931bus/pc/map/Top?window=busLocation) にアクセス
+1. [ナビタイム 国際興業バス 接近情報](https://transfer-cloud.navitime.biz/5931bus?feature=busApproaching) にアクセス
 2. 乗車バス停と降車バス停を選択して検索
-3. 結果ページのURLに含まれる `startId` と `goalId` がバス停IDです
+3. 結果ページのURLに含まれる `departure-busstop` と `arrival-busstop` がバス停IDです
 
 ### 3. AWS Lambda 関数の作成
 
